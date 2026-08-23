@@ -60,11 +60,6 @@ helper accepts only bounded integer temperatures, three known curve names, and
 a boolean full-speed value. It creates `/etc/t2fand.conf.bak` and restores it
 automatically if `t2fanrd` fails to restart.
 
-## Marketplace
-
-Validate the repository, publish it on GitHub with `manifest.json` at the root,
-then submit its URL at <https://omarchyplugins.com/publish.html>.
-
 ## License
 
 MIT
