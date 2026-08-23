@@ -15,9 +15,9 @@ Macs keep the compact hero view; two-fan models gain a small per-fan RPM list.
 - `pkexec`/PolicyKit for authenticated configuration changes
 
 The widget reads fan speed and temperatures without privilege. Saving a curve
-opens a graphical administrator prompt, validates all values, backs up
-`/etc/t2fand.conf` to `/etc/t2fand.conf.bak`, and restarts `t2fanrd`. If the
-restart fails, the helper restores the previous configuration automatically.
+opens a graphical administrator prompt, validates all values, preserves the
+original `/etc/t2fand.conf`, and restarts `t2fanrd`. If the restart fails, the
+helper restores the previous configuration automatically.
 
 ## Install
 
@@ -45,11 +45,19 @@ as the normal operating mode.
 
 ## Remove
 
+Before removing the plugin, open the widget and select **Restore original**
+twice to confirm. After administrator authentication, the helper restores the
+configuration captured before the plugin's first save and restarts `t2fanrd`.
+Then remove the plugin:
+
 ```bash
 omarchy plugin remove io.github.endijs.t2-fan-control
 ```
 
-Removing the plugin does not remove `t2fanrd` or change `/etc/t2fand.conf`.
+Omarchy does not run plugin uninstall hooks, so removing the plugin without
+restoring first leaves the current fan curve in place. If the plugin was
+already removed, reinstall it and use **Restore original** before removing it
+again. Removing the plugin never removes `t2fanrd`.
 
 ## Security
 
@@ -57,8 +65,11 @@ The status path is unprivileged and reads only sysfs, `/etc/t2fand.conf`, and
 the `t2fanrd` service state. Saving deliberately invokes `pkexec`, so every
 configuration change requires the desktop's normal administrator prompt. The
 helper accepts only bounded integer temperatures, three known curve names, and
-a boolean full-speed value. It creates `/etc/t2fand.conf.bak` and restores it
-automatically if `t2fanrd` fails to restart.
+a boolean full-speed value. On the first save it stores an immutable snapshot
+at `/var/lib/omarchy-t2-fan-control/original-t2fand.conf`; later saves never
+replace that snapshot. A successful restore deletes the snapshot so it cannot
+be reused after a later reinstall. Each save and restore also uses a temporary
+rollback copy if `t2fanrd` fails to restart.
 
 ## License
 

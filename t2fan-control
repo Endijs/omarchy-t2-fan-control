@@ -4,6 +4,8 @@ set -euo pipefail
 
 config=/etc/t2fand.conf
 service=t2fanrd.service
+state_dir=/var/lib/omarchy-t2-fan-control
+original_config="$state_dir/original-t2fand.conf"
 
 fail() {
   printf '%s\n' "$*" >&2
@@ -45,7 +47,7 @@ cpu_temperature() {
 }
 
 status() {
-  local smc="" rpm=0 minimum=0 maximum=0 low high curve full running=false
+  local smc="" rpm=0 minimum=0 maximum=0 low high curve full running=false original_saved=false
   local fans_json="" input index fan_rpm fan_min fan_max
   smc=$(find_smc || true)
   if [[ -n $smc ]]; then
@@ -73,14 +75,27 @@ status() {
   curve=$(read_setting speed_curve linear); curve=${curve:-linear}
   full=$(read_setting always_full_speed false); full=${full:-false}
   systemctl is-active --quiet "$service" && running=true
-  printf '{"temperature":%d,"fans":[%s],"rpm":%d,"minRpm":%d,"maxRpm":%d,"lowTemp":%d,"highTemp":%d,"curve":"%s","fullSpeed":%s,"running":%s}\n' \
-    "$(cpu_temperature)" "$fans_json" "$rpm" "$minimum" "$maximum" "$low" "$high" "$curve" "$full" "$running"
+  [[ -f $original_config ]] && original_saved=true
+  printf '{"temperature":%d,"fans":[%s],"rpm":%d,"minRpm":%d,"maxRpm":%d,"lowTemp":%d,"highTemp":%d,"curve":"%s","fullSpeed":%s,"running":%s,"originalSaved":%s}\n' \
+    "$(cpu_temperature)" "$fans_json" "$rpm" "$minimum" "$maximum" "$low" "$high" "$curve" "$full" "$running" "$original_saved"
+}
+
+capture_original() {
+  [[ -f $config ]] || fail "$config does not exist; configure t2fanrd before using this plugin"
+  [[ -f $original_config ]] && return
+
+  install -d -o root -g root -m 0755 "$state_dir"
+  local snapshot
+  snapshot=$(mktemp "$state_dir/.original-t2fand.conf.XXXXXX")
+  cp -a -- "$config" "$snapshot"
+  mv -n -- "$snapshot" "$original_config"
+  rm -f -- "$snapshot"
 }
 
 apply_config() {
   (( EUID == 0 )) || fail "Administrator authorization is required"
   [[ $# == 4 ]] || fail "Expected: LOW HIGH CURVE FULL_SPEED"
-  local low="$1" high="$2" curve="$3" full="$4" fan_count=1 temp backup
+  local low="$1" high="$2" curve="$3" full="$4" fan_count=1 temp rollback
 
   [[ $low =~ ^[0-9]+$ && $high =~ ^[0-9]+$ ]] || fail "Temperatures must be whole numbers"
   (( low >= 35 && low <= 80 )) || fail "Low temperature must be between 35 and 80°C"
@@ -95,9 +110,11 @@ apply_config() {
     fan_count=$(awk '/^\[Fan[0-9]+\]$/ { count++ } END { print (count > 0 ? count : 1) }' "$config")
   fi
 
-  temp=$(mktemp /etc/.t2fand.conf.XXXXXX)
-  backup="${config}.bak"
-  trap 'rm -f "${temp:-}"' EXIT
+  capture_original
+  temp=$(mktemp "$(dirname "$config")/.t2fand.conf.XXXXXX")
+  rollback=$(mktemp "$state_dir/.rollback-t2fand.conf.XXXXXX")
+  trap 'rm -f -- "${temp:-}" "${rollback:-}"' EXIT
+  cp -a -- "$config" "$rollback"
   : >"$temp"
   local fan
   for (( fan = 1; fan <= fan_count; fan++ )); do
@@ -106,18 +123,41 @@ apply_config() {
       "$fan" "$low" "$high" "$curve" "$full" >>"$temp"
   done
 
-  [[ ! -e $config ]] || cp -a "$config" "$backup"
-  install -o root -g root -m 0644 "$temp" "$config"
+  chown --reference="$config" "$temp"
+  chmod --reference="$config" "$temp"
+  mv -- "$temp" "$config"
   if ! systemctl restart "$service"; then
-    [[ ! -e $backup ]] || cp -a "$backup" "$config"
+    cp -a -- "$rollback" "$config"
     systemctl restart "$service" || true
     fail "t2fanrd rejected the new configuration; the previous file was restored"
   fi
   printf 'Fan curve saved and t2fanrd restarted\n'
 }
 
+restore_original() {
+  (( EUID == 0 )) || fail "Administrator authorization is required"
+  [[ $# == 0 ]] || fail "The restore command does not accept arguments"
+  [[ -f $original_config ]] || fail "No original configuration snapshot is available"
+
+  local rollback
+  rollback=$(mktemp "$state_dir/.rollback-t2fand.conf.XXXXXX")
+  trap 'rm -f -- "${rollback:-}"' EXIT
+  cp -a -- "$config" "$rollback"
+  cp -a -- "$original_config" "$config"
+  if ! systemctl restart "$service"; then
+    cp -a -- "$rollback" "$config"
+    systemctl restart "$service" || true
+    fail "t2fanrd rejected the original configuration; the current file was restored"
+  fi
+
+  rm -f -- "$original_config"
+  rmdir "$state_dir" 2>/dev/null || true
+  printf 'Original t2fanrd configuration restored\n'
+}
+
 case "${1:-status}" in
   status) status ;;
   apply) shift; apply_config "$@" ;;
+  restore) shift; restore_original "$@" ;;
   *) fail "Unknown command: $1" ;;
 esac
