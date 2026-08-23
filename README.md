@@ -3,6 +3,8 @@
 An Omarchy Shell bar widget for monitoring Apple T2 Mac thermals and editing
 the existing `t2fanrd` fan curve.
 
+![T2 Fan Control panel](preview.png)
+
 It displays the hottest CPU core and every fan exposed by `applesmc`. One-fan
 Macs keep the compact hero view; two-fan models gain a small per-fan RPM list.
 
