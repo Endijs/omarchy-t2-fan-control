@@ -40,8 +40,8 @@ omarchy plugin enable io.github.endijs.t2-fan-control --section right
 - `exponential`: quieter initially, steeper near the high temperature
 - `logarithmic`: stronger cooling earlier in the range
 
-`always_full_speed` is available for temporary diagnostics, but is not intended
-as the normal operating mode.
+`always_full_speed` can be used continuously for maximum cooling, at the cost
+of additional noise, power use, dust accumulation, and fan wear.
 
 ## Remove
 
