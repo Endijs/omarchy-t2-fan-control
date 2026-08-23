@@ -19,8 +19,10 @@ Panel {
   property int highTemp: 75
   property string curve: "linear"
   property bool fullSpeed: false
+  property bool originalSaved: false
   property bool dirty: false
   property bool saving: false
+  property bool restoreConfirm: false
   property string message: ""
   property string statusOutput: ""
   property string applyOutput: ""
@@ -48,6 +50,7 @@ Panel {
       minRpm = Number(primary.minRpm || 0)
       maxRpm = Number(primary.maxRpm || 0)
       daemonRunning = value.running === true
+      originalSaved = value.originalSaved === true
       if (!dirty && !saving) {
         lowTemp = Number(value.lowTemp || 55)
         highTemp = Number(value.highTemp || 75)
@@ -66,6 +69,7 @@ Panel {
       return
     }
     saving = true
+    restoreConfirm = false
     message = "Waiting for administrator authorization…"
     applyOutput = ""
     applyError = ""
@@ -73,8 +77,25 @@ Panel {
     applyProc.running = true
   }
 
+  function restoreOriginal() {
+    if (saving || !originalSaved) return
+    if (!restoreConfirm) {
+      restoreConfirm = true
+      message = "Click Restore again to replace the current curve"
+      return
+    }
+    saving = true
+    restoreConfirm = false
+    message = "Waiting for administrator authorization…"
+    applyOutput = ""
+    applyError = ""
+    applyProc.command = ["pkexec", helperPath, "restore"]
+    applyProc.running = true
+  }
+
   function resetEditor() {
     dirty = false
+    restoreConfirm = false
     message = ""
     refresh()
   }
@@ -257,7 +278,7 @@ Panel {
           to: 80
           foreground: root.foreground
           accent: root.accent
-          onModified: function(value) { root.lowTemp = value; root.dirty = true; root.message = "" }
+          onModified: function(value) { root.lowTemp = value; root.dirty = true; root.restoreConfirm = false; root.message = "" }
         }
         NumberField {
           label: "Maximum speed (°C)"
@@ -266,7 +287,7 @@ Panel {
           to: 100
           foreground: root.foreground
           accent: root.accent
-          onModified: function(value) { root.highTemp = value; root.dirty = true; root.message = "" }
+          onModified: function(value) { root.highTemp = value; root.dirty = true; root.restoreConfirm = false; root.message = "" }
         }
       }
 
@@ -288,7 +309,7 @@ Panel {
           foreground: root.foreground
           accent: root.accent
           fontFamily: root.fontFamily
-          onChanged: function(value) { root.curve = value; root.dirty = true; root.message = "" }
+          onChanged: function(value) { root.curve = value; root.dirty = true; root.restoreConfirm = false; root.message = "" }
         }
       }
 
@@ -310,7 +331,7 @@ Panel {
           busy: root.saving
           foreground: root.foreground
           accent: root.accent
-          onToggled: { root.fullSpeed = !root.fullSpeed; root.dirty = true; root.message = "" }
+          onToggled: { root.fullSpeed = !root.fullSpeed; root.dirty = true; root.restoreConfirm = false; root.message = "" }
         }
       }
 
@@ -343,6 +364,16 @@ Panel {
           accent: root.accent
           onClicked: root.resetEditor()
         }
+      }
+
+      Button {
+        visible: root.originalSaved
+        text: root.restoreConfirm ? "Confirm restore" : "Restore original configuration"
+        enabled: !root.saving
+        bordered: true
+        foreground: root.restoreConfirm ? root.urgent : root.foreground
+        accent: root.accent
+        onClicked: root.restoreOriginal()
       }
     }
   }
