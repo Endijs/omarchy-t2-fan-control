@@ -22,6 +22,7 @@ Panel {
   property bool originalSaved: false
   property bool dirty: false
   property bool saving: false
+  property bool helperInstalled: false
   property bool restoreConfirm: false
   property string message: ""
   property string statusOutput: ""
@@ -29,6 +30,7 @@ Panel {
   property string applyError: ""
 
   readonly property string helperPath: Qt.resolvedUrl("t2fan-control").toString().replace(/^file:\/\//, "")
+  readonly property string privilegedHelperPath: "/usr/local/libexec/omarchy-t2-fan-control"
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color accent: Color.accent
   readonly property color urgent: bar ? bar.urgent : Color.urgent
@@ -51,6 +53,7 @@ Panel {
       maxRpm = Number(primary.maxRpm || 0)
       daemonRunning = value.running === true
       originalSaved = value.originalSaved === true
+      helperInstalled = value.helperInstalled === true
       if (!dirty && !saving) {
         lowTemp = Number(value.lowTemp || 55)
         highTemp = Number(value.highTemp || 75)
@@ -64,6 +67,10 @@ Panel {
 
   function save() {
     if (saving) return
+    if (!helperInstalled) {
+      message = "Install the privileged helper before saving"
+      return
+    }
     if (highTemp < lowTemp + 5) {
       message = "High temperature must be at least 5°C above low"
       return
@@ -73,12 +80,16 @@ Panel {
     message = "Waiting for administrator authorization…"
     applyOutput = ""
     applyError = ""
-    applyProc.command = ["pkexec", helperPath, "apply", String(lowTemp), String(highTemp), curve, fullSpeed ? "true" : "false"]
+    applyProc.command = ["pkexec", privilegedHelperPath, "apply", String(lowTemp), String(highTemp), curve, fullSpeed ? "true" : "false"]
     applyProc.running = true
   }
 
   function restoreOriginal() {
     if (saving || !originalSaved) return
+    if (!helperInstalled) {
+      message = "Install the privileged helper before restoring"
+      return
+    }
     if (!restoreConfirm) {
       restoreConfirm = true
       message = "Click Restore again to replace the current curve"
@@ -89,7 +100,7 @@ Panel {
     message = "Waiting for administrator authorization…"
     applyOutput = ""
     applyError = ""
-    applyProc.command = ["pkexec", helperPath, "restore"]
+    applyProc.command = ["pkexec", privilegedHelperPath, "restore"]
     applyProc.running = true
   }
 

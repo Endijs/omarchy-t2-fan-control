@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.endijs.t2-fan-control",
   "name": "T2 Fan Control",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "Endijs",
   "license": "MIT",
   "description": "Monitor and configure t2fanrd from the Omarchy bar",
