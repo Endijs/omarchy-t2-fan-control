@@ -34,7 +34,16 @@ Panel {
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color accent: Color.accent
   readonly property color urgent: bar ? bar.urgent : Color.urgent
+  readonly property color mutedForeground: Qt.darker(root.foreground, 1.45)
+  readonly property color panelSurface: Qt.darker(root.foreground, 3.1)
+  readonly property color trackColor: Qt.darker(root.foreground, 1.9)
+  readonly property color temperatureColor: root.temperature >= 80 ? root.urgent : (root.temperature >= root.lowTemp ? root.accent : root.foreground)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+
+  function ratio(value, minimum, maximum) {
+    if (maximum <= minimum) return 0
+    return Math.max(0, Math.min(1, (value - minimum) / (maximum - minimum)))
+  }
 
   function refresh() {
     if (statusProc.running) return
@@ -200,6 +209,49 @@ Panel {
 
       Row {
         width: parent.width
+        spacing: Style.space(8)
+
+        Column {
+          width: parent.width - statusPill.width - parent.spacing
+          spacing: Style.space(2)
+          Text {
+            text: "T2 FAN CONTROL"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            opacity: 0.82
+          }
+          Text {
+            text: root.daemonRunning ? "Live hardware monitor" : "Daemon unavailable"
+            color: root.daemonRunning ? root.mutedForeground : root.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
+
+        Rectangle {
+          id: statusPill
+          width: statusLabel.implicitWidth + Style.space(16)
+          height: Style.space(24)
+          radius: height / 2
+          color: root.daemonRunning ? Qt.rgba(0.25, 0.75, 0.45, 0.18) : Qt.rgba(0.95, 0.25, 0.25, 0.18)
+          anchors.verticalCenter: parent.verticalCenter
+
+          Text {
+            id: statusLabel
+            anchors.centerIn: parent
+            text: root.daemonRunning ? "RUNNING" : "OFFLINE"
+            color: root.daemonRunning ? root.foreground : root.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+        }
+      }
+
+      Row {
+        width: parent.width
         spacing: Style.space(18)
 
         Column {
@@ -207,14 +259,14 @@ Panel {
           spacing: Style.space(2)
           Text {
             text: root.temperature + "°C"
-            color: root.foreground
+            color: root.temperatureColor
             font.family: root.fontFamily
             font.pixelSize: Style.font.display
             font.bold: true
           }
           Text {
             text: "Hottest CPU core"
-            color: Qt.darker(root.foreground, 1.45)
+            color: root.mutedForeground
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
@@ -224,6 +276,8 @@ Panel {
           width: (parent.width - parent.spacing) / 2
           spacing: Style.space(2)
           Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignRight
             text: root.rpm + " RPM"
             color: root.daemonRunning ? root.foreground : root.urgent
             font.family: root.fontFamily
@@ -232,11 +286,81 @@ Panel {
           }
           Text {
             width: parent.width
+            horizontalAlignment: Text.AlignRight
             text: root.daemonRunning ? (root.minRpm + "–" + root.maxRpm + " RPM · running") : "t2fanrd is not running"
             elide: Text.ElideRight
-            color: Qt.darker(root.foreground, 1.45)
+            color: root.mutedForeground
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
+          }
+        }
+      }
+
+      Column {
+        width: parent.width
+        spacing: Style.space(6)
+
+        Row {
+          width: parent.width
+          spacing: Style.space(10)
+          Text {
+            text: "TEMPERATURE"
+            color: root.mutedForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+          Text {
+            width: parent.width - 110
+            horizontalAlignment: Text.AlignRight
+            text: root.temperature + " / " + root.highTemp + "°C"
+            color: root.mutedForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+        Rectangle {
+          width: parent.width
+          height: Style.space(6)
+          radius: height / 2
+          color: root.trackColor
+          Rectangle {
+            width: parent.width * root.ratio(root.temperature, 0, root.highTemp)
+            height: parent.height
+            radius: height / 2
+            color: root.temperatureColor
+          }
+        }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(10)
+          Text {
+            text: "FAN SPEED"
+            color: root.mutedForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+          Text {
+            width: parent.width - 110
+            horizontalAlignment: Text.AlignRight
+            text: root.rpm + " / " + root.maxRpm + " RPM"
+            color: root.mutedForeground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+        }
+        Rectangle {
+          width: parent.width
+          height: Style.space(6)
+          radius: height / 2
+          color: root.trackColor
+          Rectangle {
+            width: parent.width * root.ratio(root.rpm, root.minRpm, root.maxRpm)
+            height: parent.height
+            radius: height / 2
+            color: root.accent
           }
         }
       }
@@ -281,8 +405,11 @@ Panel {
       }
 
       Row {
+        width: parent.width
         spacing: Style.space(18)
         NumberField {
+          width: (parent.width - parent.spacing) / 2
+          fieldWidth: width
           label: "Start ramping (°C)"
           value: root.lowTemp
           from: 35
@@ -292,6 +419,8 @@ Panel {
           onModified: function(value) { root.lowTemp = value; root.dirty = true; root.restoreConfirm = false; root.message = "" }
         }
         NumberField {
+          width: (parent.width - parent.spacing) / 2
+          fieldWidth: width
           label: "Maximum speed (°C)"
           value: root.highTemp
           from: 45
@@ -303,24 +432,45 @@ Panel {
       }
 
       Column {
+        width: parent.width
         spacing: Style.space(6)
         Text {
           text: "Curve"
-          color: Qt.darker(root.foreground, 1.4)
+          color: root.mutedForeground
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
         }
-        ButtonGroup {
-          options: [
-            { value: "linear", label: "Linear" },
-            { value: "exponential", label: "Exponential" },
-            { value: "logarithmic", label: "Logarithmic" }
-          ]
-          value: root.curve
-          foreground: root.foreground
-          accent: root.accent
-          fontFamily: root.fontFamily
-          onChanged: function(value) { root.curve = value; root.dirty = true; root.restoreConfirm = false; root.message = "" }
+        Row {
+          width: parent.width
+          spacing: Style.space(10)
+
+          Button {
+            width: (parent.width - parent.spacing * 2) / 3
+            text: "Linear"
+            selected: root.curve === "linear"
+            bordered: true
+            foreground: root.foreground
+            accent: root.accent
+            onClicked: { root.curve = "linear"; root.dirty = true; root.restoreConfirm = false; root.message = "" }
+          }
+          Button {
+            width: (parent.width - parent.spacing * 2) / 3
+            text: "Exponential"
+            selected: root.curve === "exponential"
+            bordered: true
+            foreground: root.foreground
+            accent: root.accent
+            onClicked: { root.curve = "exponential"; root.dirty = true; root.restoreConfirm = false; root.message = "" }
+          }
+          Button {
+            width: (parent.width - parent.spacing * 2) / 3
+            text: "Logarithmic"
+            selected: root.curve === "logarithmic"
+            bordered: true
+            foreground: root.foreground
+            accent: root.accent
+            onClicked: { root.curve = "logarithmic"; root.dirty = true; root.restoreConfirm = false; root.message = "" }
+          }
         }
       }
 
@@ -357,34 +507,61 @@ Panel {
       }
 
       Row {
+        width: parent.width
         spacing: Style.space(8)
+
         Button {
-          text: root.saving ? "Saving…" : "Save curve"
+          width: (parent.width - parent.spacing * 2) / 3
+          height: Style.space(42)
+          text: root.saving ? "Saving…" : "Save"
           iconText: "󰆓"
+          tooltipText: "Save curve"
           enabled: root.dirty && !root.saving
+          active: enabled
           bordered: true
+          radius: 0
+          horizontalPadding: Style.space(10)
+          verticalPadding: Style.space(8)
+          fontSize: Style.font.bodySmall
           foreground: root.foreground
           accent: root.accent
           onClicked: root.save()
         }
+
         Button {
+          width: (parent.width - parent.spacing * 2) / 3
+          height: Style.space(42)
           text: "Discard"
+          iconText: "󰗨"
+          tooltipText: "Discard changes"
           enabled: root.dirty && !root.saving
           bordered: true
-          foreground: root.foreground
+          radius: 0
+          horizontalPadding: Style.space(10)
+          verticalPadding: Style.space(8)
+          fontSize: Style.font.bodySmall
+          foreground: root.mutedForeground
           accent: root.accent
           onClicked: root.resetEditor()
         }
-      }
 
-      Button {
-        visible: root.originalSaved
-        text: root.restoreConfirm ? "Confirm restore" : "Restore original configuration"
-        enabled: !root.saving
-        bordered: true
-        foreground: root.restoreConfirm ? root.urgent : root.foreground
-        accent: root.accent
-        onClicked: root.restoreOriginal()
+        Button {
+          width: (parent.width - parent.spacing * 2) / 3
+          height: Style.space(42)
+          visible: root.originalSaved
+          text: root.restoreConfirm ? "Confirm" : "Restore"
+          iconText: "󰑓"
+          tooltipText: root.restoreConfirm ? "Confirm restore" : "Restore original configuration"
+          enabled: !root.saving
+          bordered: true
+          radius: 0
+          horizontalPadding: Style.space(10)
+          verticalPadding: Style.space(8)
+          fontSize: Style.font.bodySmall
+          foreground: root.restoreConfirm ? root.urgent : root.mutedForeground
+          accent: root.restoreConfirm ? root.urgent : root.accent
+          onClicked: root.restoreOriginal()
+        }
       }
     }
   }
