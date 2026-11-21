@@ -5,13 +5,17 @@ the existing `t2fanrd` fan curve.
 
 ![T2 Fan Control panel](preview.png)
 
-It displays the hottest CPU core and every fan exposed by `applesmc`. One-fan
-Macs keep the compact hero view; two-fan models gain a small per-fan RPM list.
+It displays the hottest CPU core and every fan exposed by the SMC (`applesmc`,
+or `macsmc` on newer kernels). One-fan Macs keep the compact hero view; two-fan
+models gain a small per-fan RPM list.
 
 ## Requirements
 
-- An Apple T2 Mac with the `applesmc` kernel driver
-- `t2fanrd` installed and enabled
+- An Apple T2 Mac with the `applesmc` kernel driver, or the `macsmc` driver
+  used by newer t2linux kernels (fans exposed as the `macsmc_hwmon` hwmon device)
+- `t2fanrd` installed and enabled. On `macsmc` kernels the original, now
+  archived `t2fanrd` reports `Fan not found`; use the maintained fork
+  [sharpenedblade/T2FanRD](https://github.com/sharpenedblade/T2FanRD) instead
 - `pkexec`/PolicyKit for authenticated configuration changes
 
 The widget reads fan speed and temperatures without privilege. Saving a curve

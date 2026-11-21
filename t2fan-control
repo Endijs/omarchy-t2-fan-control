@@ -31,6 +31,11 @@ find_smc() {
   for path in /sys/bus/acpi/devices/APP0001:*/fan1_input; do
     [[ -r $path ]] && { dirname "$path"; return 0; }
   done
+  # Kernel >= 7.3: SMC is driven by macsmc, fans live in a standard hwmon dir.
+  for path in /sys/class/hwmon/hwmon*; do
+    [[ $(cat "$path/name" 2>/dev/null || true) == macsmc_hwmon && -r $path/fan1_input ]] \
+      && { printf '%s\n' "$path"; return 0; }
+  done
   return 1
 }
 
